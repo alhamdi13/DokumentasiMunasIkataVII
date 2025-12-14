@@ -385,7 +385,7 @@
             });
         }
 
-        // --- UPLOAD LOGIC (Optimized with Resize) ---
+        // --- UPLOAD LOGIC (Optimized with Resize & Error Handling) ---
         document.getElementById('admin-upload').addEventListener('change', async (e) => {
             const files = Array.from(e.target.files);
             if (!files.length) return;
@@ -445,7 +445,15 @@
                     console.error(err);
                     const p = document.createElement('p');
                     p.className = "text-red-600 font-bold";
-                    p.innerText = `! Gagal: ${file.name}`;
+                    
+                    // Specific Error Messages
+                    if(err.code === 'storage/unauthorized' || err.code === 'permission-denied') {
+                         p.innerText = `! IZIN DITOLAK: ${file.name} (Cek Rules!)`;
+                         showToast("Gagal: Izin Firebase ditolak!", "🔒");
+                    } else {
+                         p.innerText = `! Gagal: ${file.name}`;
+                    }
+                    
                     logDiv.prepend(p);
                 }
 
@@ -456,7 +464,8 @@
             
             document.getElementById('upload-status-text').innerText = "Selesai!";
             inputEl.disabled = false;
-            showToast("Upload selesai!", "🎉");
+            inputEl.value = ''; // Reset input so same files can be selected again if needed
+            showToast("Proses antrian selesai.", "🏁");
         });
 
         // --- UI UTILS ---
