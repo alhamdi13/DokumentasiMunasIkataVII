@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Gallery Filter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <style>
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2563eb;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans p-6">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="mb-8 flex flex-col md:flex-row justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-blue-900">Smart Gallery Filter</h1>
+                <p class="text-gray-600">Filter ratusan foto berdasarkan wajah seseorang secara otomatis.</p>
+            </div>
+            <div id="status-indicator" class="mt-4 md:mt-0 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold flex items-center gap-2">
+                <div class="loader"></div> Memuat Model AI...
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- PANEL KIRI: Kontrol & Target -->
+            <div class="lg:col-span-4 space-y-6">
+                
+                <!-- Langkah 1: Tentukan Target -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-blue-100">
+                    <h2 class="text-lg font-bold text-blue-800 mb-4 border-b pb-2">1. Siapa yang dicari?</h2>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nama Target</label>
+                        <input type="text" id="target-name" placeholder="Contoh: Alhamdi" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Foto Wajah (Close-up)</label>
+                        <input type="file" id="ref-upload" accept="image/*" disabled class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                    </div>
+
+                    <div id="ref-preview-area" class="hidden text-center">
+                        <img id="ref-img" class="w-32 h-32 object-cover rounded-full mx-auto border-4 border-blue-500 shadow-md mb-2">
+                        <p class="text-xs text-green-600 font-bold">✓ Wajah Terdata</p>
+                    </div>
+                </div>
+
+                <!-- Langkah 2: Upload Album -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 opacity-50 pointer-events-none" id="step-2-panel">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2">2. Upload Album Foto</h2>
+                    <p class="text-xs text-gray-500 mb-3">Pilih banyak foto sekaligus dari galeri/folder Anda.</p>
+                    
+                    <input type="file" id="gallery-upload" multiple accept="image/*" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"/>
+                    
+                    <div class="mt-4 pt-4 border-t">
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>Progress Analisis:</span>
+                            <span id="progress-text">0/0</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- PANEL KANAN: Hasil -->
+            <div class="lg:col-span-8">
+                <div class="bg-white p-6 rounded-xl shadow-lg min-h-[500px]">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold text-gray-800">Hasil Filter</h2>
+                        <span id="match-count" class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">0 Foto Ditemukan</span>
+                    </div>
+
+                    <!-- Grid Hasil -->
+                    <div id="gallery-grid" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <!-- Placeholder Kosong -->
+                        <div class="col-span-full flex flex-col items-center justify-center text-gray-400 h-64 border-2 border-dashed rounded-lg">
+                            <svg class="w-12 h-12 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            <p>Foto yang cocok dengan target akan muncul di sini.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State Variables
+        let targetDescriptor = null;
+        let faceMatcher = null;
+        const statusIndicator = document.getElementById('status-indicator');
+        const refUpload = document.getElementById('ref-upload');
+        const step2Panel = document.getElementById('step-2-panel');
+        const galleryUpload = document.getElementById('gallery-upload');
+        const galleryGrid = document.getElementById('gallery-grid');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const matchCountBadge = document.getElementById('match-count');
+        let matchCounter = 0;
+
+        // 1. Load Models
+        async function loadModels() {
+            try {
+                // Menggunakan model Tiny agar lebih cepat untuk batch processing
+                const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+                await Promise.all([
+                    faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL), // Deteksi akurat
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                ]);
+
+                statusIndicator.className = "mt-4 md:mt-0 px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-semibold";
+                statusIndicator.innerHTML = "✓ Sistem Siap";
+                refUpload.disabled = false;
+            } catch (err) {
+                console.error(err);
+                statusIndicator.innerHTML = "❌ Gagal Memuat";
+            }
+        }
+        loadModels();
+
+        // 2. Handle Target (Reference) Upload
+        refUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            statusIndicator.innerHTML = `<div class="loader"></div> Menganalisis Target...`;
+            
+            const imgUrl = URL.createObjectURL(file);
+            const img = await faceapi.fetchImage(imgUrl);
+            
+            // Deteksi wajah target
+            const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+
+            if (detection) {
+                targetDescriptor = detection.descriptor;
+                // Buat matcher dengan toleransi 0.5 (makin kecil makin ketat)
+                faceMatcher = new faceapi.FaceMatcher(targetDescriptor, 0.5); 
+                
+                // Update UI
+                document.getElementById('ref-img').src = imgUrl;
+                document.getElementById('ref-preview-area').classList.remove('hidden');
+                step2Panel.classList.remove('opacity-50', 'pointer-events-none');
+                statusIndicator.innerHTML = "✓ Target Terkunci";
+                
+                // Reset Gallery jika user mengganti target
+                galleryGrid.innerHTML = '';
+                matchCounter = 0;
+                matchCountBadge.innerText = "0 Foto Ditemukan";
+            } else {
+                alert("Wajah tidak terdeteksi jelas pada foto target. Coba foto lain.");
+                statusIndicator.innerHTML = "⚠ Cek Foto Target";
+            }
+        });
+
+        // 3. Handle Batch Gallery Upload (Processing Logic)
+        galleryUpload.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            // Reset Grid
+            galleryGrid.innerHTML = '';
+            matchCounter = 0;
+            matchCountBadge.innerText = "0 Foto Ditemukan";
+            
+            let processedCount = 0;
+            progressText.innerText = `0/${files.length}`;
+            statusIndicator.innerHTML = `<div class="loader"></div> Menyaring Foto...`;
+
+            // Proses setiap foto satu per satu
+            for (const file of files) {
+                try {
+                    const imgUrl = URL.createObjectURL(file);
+                    const img = await faceapi.fetchImage(imgUrl);
+
+                    // Deteksi SEMUA wajah di foto album
+                    const detections = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
+
+                    // Cek apakah ada yang cocok dengan Target
+                    let isMatch = false;
+                    for (const d of detections) {
+                        const match = faceMatcher.findBestMatch(d.descriptor);
+                        // Jika distance < threshold (0.5), berarti cocok
+                        if (match.label !== 'unknown') {
+                            isMatch = true;
+                            break; 
+                        }
+                    }
+
+                    if (isMatch) {
+                        addPhotoToGrid(imgUrl, file.name);
+                        matchCounter++;
+                        matchCountBadge.innerText = `${matchCounter} Foto Ditemukan`;
+                    }
+
+                } catch (err) {
+                    console.error("Gagal memproses gambar:", file.name, err);
+                }
+
+                // Update Progress Bar
+                processedCount++;
+                const percentage = (processedCount / files.length) * 100;
+                progressBar.style.width = `${percentage}%`;
+                progressText.innerText = `${processedCount}/${files.length}`;
+            }
+
+            statusIndicator.innerHTML = "✓ Filter Selesai";
+        });
+
+        function addPhotoToGrid(url, name) {
+            const div = document.createElement('div');
+            div.className = "relative group overflow-hidden rounded-lg shadow-md aspect-square bg-gray-200";
+            div.innerHTML = `
+                <img src="${url}" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110">
+                <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs p-2 translate-y-full group-hover:translate-y-0 transition-transform">
+                    ${name}
+                </div>
+                <div class="absolute top-2 right-2 bg-green-500 text-white p-1 rounded-full shadow-lg">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+            `;
+            galleryGrid.appendChild(div);
+        }
+
+    </script>
+</body>
+</html>
