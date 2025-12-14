@@ -59,7 +59,7 @@
                 </div>
             </div>
             <button onclick="toggleSettings()" class="p-2 text-slate-400 hover:text-blue-600 transition-colors btn-press">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
             </button>
         </div>
     </header>
@@ -136,7 +136,7 @@
                             <svg class="mx-auto h-12 w-12 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                         </div>
                         <p class="text-sm font-semibold text-indigo-600 mb-1">Pilih Foto Album</p>
-                        <p class="text-[10px] text-slate-400">Otomatis dikompres agar ringan</p>
+                        <p class="text-[10px] text-slate-400">Otomatis dikompres &lt; 200KB</p>
                         <input type="file" id="admin-upload" multiple accept="image/*" class="hidden"/>
                     </div>
 
@@ -235,6 +235,11 @@
                 if (!firebase.apps.length) firebase.initializeApp(myFirebaseConfig);
                 db = firebase.firestore();
                 storage = firebase.storage();
+                
+                // --- FIX: INCREASE RETRY TIMEOUT ---
+                storage.setMaxUploadRetryTime(300000); 
+                storage.setMaxOperationRetryTime(300000);
+
                 isCloudMode = true;
                 
                 ui.statusDot.classList.replace('bg-slate-300', 'bg-green-500');
@@ -265,7 +270,7 @@
         }
 
         // --- IMAGE RESIZE HELPER ---
-        const resizeImage = (file, maxWidth = 1200) => {
+        const resizeImage = (file, maxWidth = 1000) => { // Reduced to 1000px
             return new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
@@ -282,10 +287,13 @@
                         canvas.height = height;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
+                        
+                        // --- FIX: AGGRESSIVE COMPRESSION ---
+                        // Force JPEG 0.7 quality to target < 200KB
                         canvas.toBlob((blob) => {
-                            // Re-create a file with the same name but smaller size
-                            resolve(new File([blob], file.name, { type: file.type }));
-                        }, file.type, 0.8); // 0.8 quality
+                            const newName = file.name.replace(/\.[^/.]+$/, "") + ".jpg"; 
+                            resolve(new File([blob], newName, { type: 'image/jpeg' }));
+                        }, 'image/jpeg', 0.7); 
                     };
                     img.src = e.target.result;
                 };
@@ -385,7 +393,7 @@
             });
         }
 
-        // --- UPLOAD LOGIC (Optimized with Resize & Error Handling) ---
+        // --- UPLOAD LOGIC (Optimized with Resize) ---
         document.getElementById('admin-upload').addEventListener('change', async (e) => {
             const files = Array.from(e.target.files);
             if (!files.length) return;
@@ -404,22 +412,26 @@
                 document.getElementById('upload-status-text').innerText = `Proses: ${file.name.substring(0, 15)}...`;
                 
                 try {
-                    // 1. Resize Image FIRST (Critical for performance)
-                    const resizedFile = await resizeImage(file, 1200); // Resize to max 1200px
+                    // 1. Resize Image FIRST
+                    const resizedFile = await resizeImage(file, 1000); // 1000px limit
+                    
+                    // Show Compression Stats
+                    const originalSizeKB = Math.round(file.size / 1024);
+                    const newSizeKB = Math.round(resizedFile.size / 1024);
+                    const saved = Math.round(((file.size - resizedFile.size) / file.size) * 100);
+                    
                     const imgUrl = URL.createObjectURL(resizedFile);
                     
-                    // 2. Detect Faces on lighter image
+                    // 2. Detect Faces
                     const img = await faceapi.fetchImage(imgUrl);
                     const detections = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
-                    
-                    // Free up memory immediately
                     URL.revokeObjectURL(imgUrl);
 
                     if (detections.length > 0) {
-                        const fileName = `${Date.now()}_${file.name}`;
+                        const fileName = `${Date.now()}_${resizedFile.name}`;
                         const storageRef = storage.ref().child(`gallery/${fileName}`);
                         
-                        // 3. Upload the RESIZED file (saves bandwidth & storage)
+                        // 3. Upload RESIZED
                         const snapshot = await storageRef.put(resizedFile);
                         const downloadURL = await snapshot.ref.getDownloadURL();
 
@@ -432,28 +444,29 @@
                             });
                         }
                         const p = document.createElement('p');
-                        p.className = "text-green-600";
-                        p.innerText = `✓ ${file.name}: ${detections.length} wajah`;
+                        p.className = "text-green-600 border-b border-slate-100 pb-1 mb-1";
+                        p.innerHTML = `✓ <b>${file.name}</b>: ${detections.length} wajah<br><span class="text-[9px] text-slate-400">Kompresi: ${originalSizeKB}KB ➜ ${newSizeKB}KB (Hemat ${saved}%)</span>`;
                         logDiv.prepend(p);
                     } else {
                         const p = document.createElement('p');
-                        p.className = "text-red-400";
+                        p.className = "text-red-400 border-b border-slate-100 pb-1 mb-1";
                         p.innerText = `x ${file.name}: Tidak ada wajah`;
                         logDiv.prepend(p);
                     }
                 } catch (err) {
                     console.error(err);
                     const p = document.createElement('p');
-                    p.className = "text-red-600 font-bold";
+                    p.className = "text-red-600 font-bold border-b border-slate-100 pb-1 mb-1";
                     
-                    // Specific Error Messages
                     if(err.code === 'storage/unauthorized' || err.code === 'permission-denied') {
-                         p.innerText = `! IZIN DITOLAK: ${file.name} (Cek Rules!)`;
+                         p.innerText = `! IZIN DITOLAK: ${file.name}`;
                          showToast("Gagal: Izin Firebase ditolak!", "🔒");
+                    } else if(err.code === 'storage/retry-limit-exceeded') {
+                         p.innerText = `! KONEKSI TIMEOUT: ${file.name}`;
+                         showToast("Koneksi Internet Lemah!", "📡");
                     } else {
                          p.innerText = `! Gagal: ${file.name}`;
                     }
-                    
                     logDiv.prepend(p);
                 }
 
@@ -464,7 +477,7 @@
             
             document.getElementById('upload-status-text').innerText = "Selesai!";
             inputEl.disabled = false;
-            inputEl.value = ''; // Reset input so same files can be selected again if needed
+            inputEl.value = '';
             showToast("Proses antrian selesai.", "🏁");
         });
 
